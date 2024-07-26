@@ -53,7 +53,14 @@ You can also see that this gene belongs to a module that can represent all the s
 
 This is the module in which the KEGG genes are assigned to 17100 functions. You can see that this is involved in the formaldehyde assimilation/xylulose monophosphate pathway. The circles represent various compounds and the squares starting with R0 are the reactions. 
 
-## Experiment 
+### Random Forest
+
+Random forests are powerful machine-learning methods that are also relatively simple. To learn more about random forest methods see this video https://www.youtube.com/watch?v=J4Wdy0Wc_xQ 
+
+
+## Experiment
+
+### Preliminary evidence
 
 Our hypothesis is that we can distinguish module genes from each other based on codon usage. Preliminary support for this hypothesis is seen in the figure below. 
 
@@ -61,5 +68,18 @@ Our hypothesis is that we can distinguish module genes from each other based on 
 
 Genes within the urea (M0029) and galactose (M00632) pathways are more similar in RSCU across all degenerate codons to genes within the pathway (mean difference 0.351 and 0.335 for urea and galactose) than between the two pathways (mean difference 0.351). 
 
+
+### Setting up R
+
+We will start this experiment in R. Make sure you have RStudio installed on your computer https://rstudio-education.github.io/hopr/starting.html
+
+We will use a format in R called R-Markdown. For an introduction to R-markdown see:
+https://www.youtube.com/watch?v=asHhuHRxhvo
+
+For a complete guide to R-markdown see: https://bookdown.org/yihui/rmarkdown/
+
+### Running your first analysis 
+
+I have create an R-markdown file that will introduce you to the analysis in 1 species for 1 module. We will expand this analysis over the course of the semester
 
 
