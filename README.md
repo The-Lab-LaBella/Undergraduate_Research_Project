@@ -2,9 +2,9 @@
 
 ## Introduction
 
-In this semester's OUR project, we will be testing the hypothesis that **co-expressed genes have similar codon usage bias**.
+In this semester's OUR project, we will test the hypothesis that **co-expressed genes have similar codon usage bias**.
 
-To do this we will use standard machine learning analyses, primarily focused on random forest classification. Throughout the semester we will work our way through the analysis below. 
+To do this, we will use standard machine learning analyses, primarily focused on random forest classification. Throughout the semester, we will work our way through the analysis below. 
 
 ## Background
 
@@ -16,4 +16,5 @@ Read more about codon usage bias here: https://github.com/The-Lab-LaBella/Intro_
 
 ### KEGG modules
 
-KEGG is a database that helps us understand the possible functions of genes we identify in genomes. One component is KEGG Ontologies or KEGG IDs. These are assigned to genes based on sequence similarity to a reference 
+KEGG is a database that helps us understand the possible functions of genes we identify in genomes. One component is KEGG Ontologies or KEGG IDs. These are assigned to genes based on sequence similarity to a reference sequence. 
+![image](https://github.com/user-attachments/assets/c78cd4a6-2c26-4d9e-a021-93d2544fcf6e)
