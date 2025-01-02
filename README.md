@@ -1,8 +1,8 @@
-# OUR_Fall24
+# Undergraduate Research Project
 
 ## Introduction
 
-In this semester's OUR project, we will test the hypothesis that **co-expressed genes have similar codon usage bias**.
+In this project, we will test the hypothesis that **co-expressed genes have similar codon usage bias**.
 
 To do this, we will use standard machine learning analyses, primarily focused on random forest classification. Throughout the semester, we will work our way through the analysis below. 
 
@@ -80,6 +80,6 @@ For a complete guide to R-markdown see: https://bookdown.org/yihui/rmarkdown/
 
 ### Running your first analysis 
 
-I have create an R-markdown file that will introduce you to the analysis in 1 species for 1 module. We will expand this analysis over the course of the semester
+I have created an R-markdown file that will introduce you to the analysis of 1 species for 1 module. We will expand this analysis over the course of the semester.
 
 
