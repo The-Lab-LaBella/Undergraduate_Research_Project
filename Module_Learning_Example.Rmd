@@ -1,0 +1,411 @@
+---
+title: "Module_Learning_Example"
+author: "Abbe LaBella"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+The Setup chunk is where you can load in any of the libraries that you will need. If you put them in the setup chunk they will be loaded anytime you run any part of the analysis
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#this is the random forest package
+if(!require(randomForest)){
+    install.packages("randomForest")
+    library(randomForest)
+}
+
+if(!require(reshape2)){
+    install.packages("reshape2")
+    library(reshape2)
+}
+
+if(!require(dplyr)){
+    install.packages("dplyr")
+    library(dplyr)
+}
+
+if(!require(stringr)){
+    install.packages("stringr")
+    library(stringr)
+}
+```
+
+*note* you can see that the chunks have the same format. They all begin and end with three **'** symbols. The information inside of the brackets {} contains the information for running the chunk. The first is what language it is in. We will use r for R language. Then you must give it a **unique** chunk name.
+
+## Step 1 - Load and format the files we will need.
+
+*NOTE* You do not need to provide the directory for files that are saved in the same folder as the Rmd (markdown) file
+
+We are going to use the *S. cerevisaie* genome files
+
+```{r load files}
+
+#Load in all the RSCU data for the genome
+
+#there separator between columns is a comma, so we need to set that
+rscu_data<-read.delim("saccharomyces_cerevisiae.final.cds.all_codonTable.out.csv_RSCU.csv", sep = ",")
+
+#there is no header in this file, so we need to set that to false
+kegg_data<-read.delim("saccharomyces_cerevisiae.txt", header=F)
+
+```
+
+The two files are not in the correct format.
+
+To look at the format click on the dataset in the **Data** window to the right. It should pop up as a table that you can browse through.
+
+We want the data to be in the following format
+
+| KEGG  | RSCU_TTT | RSCU_TTC | RSCU_NNN |
+|-------|----------|----------|----------|
+| K0001 | 0.5      | 0.8      | 0.7      |
+
+
+First we need to address differences in the gene names
+
+There is another issue with the data. Column 1 in the kegg_data is the gene information in the format of `g000002.m1` In the RSCU data the species name is in the name `saccharomyces_cerevisiae_g000002.m1`
+
+```{r edit names}
+
+#here we are going to take teh column Sequence and apply the function str (string) replace. We will replace the pattern saccharomyces_cerevisiae with nothing aka an empty string "" 
+
+rscu_data$Sequence<-str_replace(rscu_data$Sequence, pattern = "saccharomyces_cerevisiae.", replacement = "")
+
+```
+
+
+Now we need to merge the data. However, there are sometimes genes with more than one KEGG ID and sometimes KEGG IDs belong to more than one gene
+
+For example you can see that both g000007.m1 and g00008.m1 belong to the KEGG K00004
+
+You can also see that the gene g000040.m1 belongs to both K14802 and K01530 
+
+```{r example duplicate}
+
+kegg_data[1:5,]
+
+#subset(kegg_data, V1=="g000040.m1")
+#I don't understand what V1 is 
+subset(kegg_data, V1=="g000040.m1")
+
+```
+We are interested in the per-KEGG RSCU values. Therefore when more than one gene is associated with a KEGG ID we want to take the median OR max value. We will choose median for now and then test to see if max changes things. 
+
+For example, you can see that the CTT RSCU value for the two genes that belong to K00004 are 0.564 and 0.888 and the median value is 0.726
+
+```{r example median}
+
+subset(subset(rscu_data, Sequence == "g000007.m1" | Sequence == "g000008.m1"), Codon == "CTT")
+
+median(subset(subset(rscu_data, Sequence == "g000007.m1" | Sequence == "g000008.m1"), Codon == "CTT")$RSCU)
+```
+
+We don't want to do this all by hand! So now we want to merge the data and then get the median value for all codons. 
+
+
+```{r merge}
+
+#Change the file names so that they match between the datasets
+
+colnames(kegg_data)<-c("Sequence","KEGG")
+
+all_data<-left_join(kegg_data, rscu_data)
+
+#We can now see that there are two values for the KEGG K00004
+subset(all_data, KEGG=="K00004" & Codon == "CTT")
+
+```
+
+
+
+We now need to convert the data from long format to wide format. This will also allow us to take the median value per KEGG To learn more about the difference between long and wide format see: <https://libguides.princeton.edu/R-reshape>
+
+```{r format files}
+
+#convert all_data from long to wide format
+
+rscu_wide<-dcast(all_data, formula=KEGG ~ Codon, value.var ="RSCU", fun.aggregate = median)
+
+
+#we also need to remove the columns that are stop codons 
+#Stop codons are TAA, TAG, TGA
+#to Remove these columns we can use
+
+rscu_wide<-subset(rscu_wide, select=-c(TAA,TAG,TGA))
+
+#there should now be only 62 variables in the dataset 
+
+
+```
+
+
+# Step 2 - Run the random forest
+
+Let's pilot this on the Pentose phosphate pathway
+here: https://www.genome.jp/entry/pathway+map00030
+keggs: https://www.genome.jp/dbget-bin/get_linkdb?-t+orthology+path:map00030
+
+```{r RF prep}
+
+#Put the keggs into an array
+pathway<-c("K00032","K00033","K00034","K00036","K00090","K00115","K00117","K00131","K00615","K00616","K00850","K00851","K00852","K00874","K00895","K00918","K00948","K01053","K01057","K01086","K01619","K01621","K01622","K01623","K01624","K01625","K01690","K01783","K01807","K01808","K01810","K01835","K01839","K02446","K03738","K03841","K04041","K05308","K05774","K06151","K06152","K06859","K07404","K08093","K08094","K11214","K11395","K11441","K11529","K11532","K11645","K13810","K13812","K13831","K13937","K15778","K15779","K15916","K16305","K16306","K16370","K17463","K17464","K17465","K17466","K17467","K17468","K18020","K18021","K18022","K18124","K18125","K18126","K18127","K18128","K18237","K18978","K19243","K19813","K21056","K21071","K21840","K22199","K22229","K22345","K22969","K24182","K25031","K26208")
+
+#copy the rscu_wide 
+
+pathway_data<-rscu_wide
+
+#create a new column called presence where we will store pathway information
+pathway_data$presence<-"non-pathway"
+
+#we want to set the presence column to pathway for all the keggs that match our list
+
+pathway_data$presence[pathway_data$KEGG %in% pathway]<-"pathway"
+
+#Make the presence column a special type of data called a factor
+pathway_data$presence<-as.factor(pathway_data$presence)
+
+table(pathway_data$presence)
+
+```
+
+
+Now we have each KEGG labeled if they belong or don't belong to the pathway in the "presence" column
+
+However, this data is _very_ imbalanced. With 15 positive instances of the pathway and 2961 non-pathway genes. 
+
+We have two strategies, we can campare 2 or more pathways to each other, or we can randomly subset our data to include ~15 non-pathway genes. 
+
+## Strategy 1 - subset the data
+
+We want to randomly choose 15 non-pathway genes
+
+```{r subset data}
+
+#save all 15 pathway 
+pathway<-subset(pathway_data, presence == "pathway")
+
+non<-subset(pathway_data, presence == "non-pathway")
+
+#randomly subset
+non_sample<-sample(nrow(non), 0.005 * nrow(non))
+non<-non[non_sample, ]
+
+
+#rejoin the data
+
+subset_pathway<-rbind(pathway, non)
+
+table(subset_pathway$presence)
+```
+
+
+For the random forest we are going to follow this tutorial 
+
+https://www.simplilearn.com/tutorials/data-science-tutorial/random-forest-in-r
+
+_NOTE_ to make this reproducable we will always want to set a seed value. 
+
+```{r random_forest}
+
+set.seed(123)
+
+#create our training and our test dataset (80% of the data)
+
+samp <- sample(nrow(subset_pathway), 0.8 * nrow(subset_pathway))
+
+train <- subset_pathway[samp, ]
+
+test <- subset_pathway[-samp, ]
+
+table(train$presence)
+table(test$presence)
+
+#we need to remove the KEGG row
+
+row.names(train)<-train[,1]
+row.names(test)<-test[,1]
+
+train<-train[,-1]
+test<-test[,-1]
+
+#Run the random forest
+
+model <- randomForest(presence ~ ., data = train, ntree = 1000, mtry = 5)
+
+model
+
+model$confusion
+
+#for visulization
+
+all_data$presence<-"non-pathway"
+
+#we want to set the presence column to pathway for all the keggs that match our list
+
+all_data$presence[all_data$KEGG %in% pathway]<-"pathway"
+
+
+
+# The next step is to validate our model using the test data
+
+prediction <- predict(model, newdata = test)
+
+table(prediction, test$presence)
+
+prediction
+
+```
+
+Answer the question:
+WHAT DO THE RESULTS SUGGEST?
+
+## Strategy 2 - Compare two pathways
+
+Compare Pentose phosphate pathway to Autophagy
+
+Pentose: https://www.genome.jp/pathway/map00030
+Autophagy: https://www.genome.jp/pathway/sce04138
+
+```{r compare pathway}
+
+autph<-c("K20178","K15296","K08341","K06027","K08333","K08335","K21156","K08336","K05757","K06902","K17900","K17260","K20183","K04382","K17907","K04382","K07756","K21144","K00654","K20184","K00915","K09243","K16196","K12761","K20177","K09464","K01336","K21157","K12767","K17908","K12479","K20195","K21158","K08269","K08502","K04464","K21197","K08337","K07204","K19800","K05754","K04345","K21141","K03237","K18584","K07203","K18083","K05755","K16314","K09468","K14209","K04345","K08516","K07203","K08338","K20181","K21145","K00914","K05756","K20182","K08329","K17909","K07897","K17606","K09468","K08340","K08493","K20179","K00654","K08266","K07827","K14209","K08342","K17906","K08343","K05758","K01336","K07827","K21155","K06655","K20180","K17908","K08334","K08339","K01381","K21143","K04345","K17607","K08330","K08331")
+
+pentose<-c("K00032","K00033","K00034","K00036","K00090","K00115","K00117","K00131","K00615","K00616","K00850","K00851","K00852","K00874","K00895","K00918","K00948","K01053","K01057","K01086","K01619","K01621","K01622","K01623","K01624","K01625","K01690","K01783","K01807","K01808","K01810","K01835","K01839","K02446","K03738","K03841","K04041","K05308","K05774","K06151","K06152","K06859","K07404","K08093","K08094","K11214","K11395","K11441","K11529","K11532","K11645","K13810","K13812","K13831","K13937","K15778","K15779","K15916","K16305","K16306","K16370","K17463","K17464","K17465","K17466","K17467","K17468","K18020","K18021","K18022","K18124","K18125","K18126","K18127","K18128","K18237","K18978","K19243","K19813","K21056","K21071","K21840","K22199","K22229","K22345","K22969","K24182","K25031","K26208")
+
+#check to see if there are any repeated keggs
+
+table(c(autph, pentose))>1
+
+
+#copy the rscu_wide 
+
+pathway_data<-rscu_wide
+
+#create a new column called presence where we will store pathway information
+pathway_data$presence<-"non-pathway"
+
+#we want to set the presence column to pathway for all the keggs that match our list
+
+pathway_data$presence[pathway_data$KEGG %in% autph]<-"autph"
+pathway_data$presence[pathway_data$KEGG %in% pentose]<-"pentose"
+
+table(pathway_data$presence)
+```
+
+
+RF analysis
+
+
+```{r random_forest compare}
+
+set.seed(123)
+
+#get just the two pathways
+
+subset_pathway<-subset(pathway_data, presence != "non-pathway")
+subset_pathway$presence<-as.factor(subset_pathway$presence)
+
+#create our training and our test dataset (80% of the data)
+
+samp <- sample(nrow(subset_pathway), 0.8 * nrow(subset_pathway))
+
+train <- subset_pathway[samp, ]
+
+test <- subset_pathway[-samp, ]
+
+table(train$presence)
+table(test$presence)
+
+#we need to remove the KEGG row
+
+train<-train[,-1]
+test<-test[,-1]
+
+#Run the random forest
+
+model <- randomForest(presence ~ ., data = train, ntree = 1000, mtry = 5)
+
+model
+
+model$confusion
+
+
+# The next step is to validate our model using the test data
+
+prediction <- predict(model, newdata = test)
+
+table(prediction, test$presence)
+
+prediction
+
+```
+QUESTION:
+What do these results mean?
+
+RF analysis works best when the classes have equal numbers of instances. 
+
+This time lets balance the data 
+
+Balance the data
+
+```{r compare balance}
+
+#save all 15 pathway 
+pentose<-subset(pathway_data, presence == "pentose")
+
+autph<-subset(pathway_data, presence == "autph")
+
+#randomly subset
+non_sample<-sample(nrow(autph), 0.2 * nrow(autph))
+autph<-autph[non_sample, ]
+
+
+#rejoin the data
+
+subset_pathway<-rbind(pentose, autph)
+
+table(subset_pathway$presence)
+
+
+
+subset_pathway$presence<-as.factor(subset_pathway$presence)
+
+samp <- sample(nrow(subset_pathway), 0.8 * nrow(subset_pathway))
+
+train <- subset_pathway[samp, ]
+
+test <- subset_pathway[-samp, ]
+
+table(train$presence)
+table(test$presence)
+
+#we need to remove the KEGG row
+
+train<-train[,-1]
+test<-test[,-1]
+
+#Run the random forest
+
+model <- randomForest(presence ~ ., data = train, ntree = 1000, mtry = 5)
+
+model
+
+model$confusion
+
+
+# The next step is to validate our model using the test data
+
+prediction <- predict(model, newdata = test)
+
+table(prediction, test$presence)
+
+prediction
+```
+
+
+
+
+
+
